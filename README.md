@@ -149,6 +149,31 @@ service, load failure) degrades to the plain path list. The card is
 hand-written against the `window.__ModuleLoader__` contract — no build step;
 `tsc` does not touch it.
 
+## Settings card
+
+The plugin registers the settings namespace `dsh-tool-imagegen`, and the browser
+half contributes its card to the "Plugins" settings section. The card edits the
+model aliases (alias, slug, defaults as JSON) and the scalar tunables
+(`defaultModel`, `outputDir`, `showInChat`, `maxImagesPerCall`, both reference
+caps).
+
+Config and card are layered, not alternatives:
+
+```
+schema defaults  →  base (this plugin's cordis config)  →  user layer (the card)
+```
+
+so `cordis.yml` stays the deployment's stated intent, a card edit is an override
+on top of it, and "reset" falls back to exactly the configured value rather than
+to a schema default nobody chose. Changes apply live — no restart.
+
+`apiKeyEnv`, `baseURL` and `capabilityTtlMs` stay config-only: they are
+deployment decisions, and the capability cache is built from the latter two once
+at apply time.
+
+Without a settings service (a headless deployment) the tool runs on the
+configured values — unconfigurable, but working.
+
 ## Policy
 
 No permission logic in the tool: allow/deny/ask belongs in a

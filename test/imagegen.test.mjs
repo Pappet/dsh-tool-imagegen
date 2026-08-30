@@ -10,6 +10,7 @@ import { join } from 'node:path';
 
 import { extForMediaType, sanitizeName, timestampForName, withMediaExtension, writeImages } from '../lib/write.js';
 import { readReferences, sniffMediaType, toWireReference } from '../lib/references.js';
+import { isUsableSettings, settingsFromConfig } from '../lib/settings.js';
 import { CapabilityCache, buildParams, gateReferences, FORWARDABLE_PARAMS } from '../lib/capabilities.js';
 import { OpenRouterHttpError, fetchImageModels, generateImage } from '../lib/openrouter.js';
 import { applyWithDeps as apply } from '../lib/index.js';
@@ -216,16 +217,42 @@ test('generateImage: maps data and usage.cost; throws on empty data; sends model
 
 // -------------------------------------------------------------- index.ts
 
-function fakeCtx(credentialsSeam, attachmentsSeam) {
+function fakeCtx(credentialsSeam, attachmentsSeam, settingsSeam) {
     const registered = [];
     const effects = [];
     return {
         registered,
+        // Real cordis runs an effect's setup immediately; the fake defers so a
+        // test decides whether the boot-time capability prefetch runs.
+        runEffects: () => effects.forEach((fn) => fn()),
         ctx: {
             tools: { register: (def) => registered.push(def) },
             effect: (fn) => effects.push(fn),
             credentials: credentialsSeam ?? { resolve: async () => undefined },
             get: (name) => (name === 'attachments' ? attachmentsSeam : undefined),
+            inject: (names, cb) => {
+                if (names.includes('settings') && settingsSeam) cb({ settings: settingsSeam });
+            },
+        },
+    };
+}
+
+function fakeSettings(initial) {
+    const state = { registered: undefined, watchers: [], value: initial };
+    return {
+        state,
+        register: (ns, schema, options) => {
+            state.registered = { ns: String(ns), schema, options };
+            if (state.value === undefined) state.value = options?.base;
+            return {
+                get: () => state.value,
+                watch: (cb) => { state.watchers.push(cb); return () => { state.watchers = []; }; },
+            };
+        },
+        emit: (next) => {
+            const prev = state.value;
+            state.value = next;
+            for (const w of state.watchers) w(next, prev);
         },
     };
 }
@@ -843,5 +870,103 @@ test('plugin: output_format is a call parameter, gated like every other', async 
             ),
             /does not support the "output_format" parameter/,
         );
+    } finally { await rm(workspace, { recursive: true, force: true }); }
+});
+
+// -------------------------------------------------------------- settings.ts
+
+test('settings: the base layer is exactly the config subset the card may edit', () => {
+    const base = settingsFromConfig({ ...CONFIG, ...REF_CONFIG_LIMITS, showInChat: true });
+    assert.deepEqual(Object.keys(base).sort(), [
+        'defaultModel', 'maxImagesPerCall', 'maxReferenceBytes', 'maxReferenceTotalBytes',
+        'models', 'outputDir', 'showInChat',
+    ]);
+    // Deployment decisions are NOT editable from the card.
+    assert.equal(base.apiKeyEnv, undefined);
+    assert.equal(base.baseURL, undefined);
+    assert.equal(base.capabilityTtlMs, undefined);
+    assert.equal(base.defaultModel, 'seedream');
+    assert.deepEqual(base.models, CONFIG.models);
+});
+
+test('settings: absent showInChat resolves to true, not undefined', () => {
+    const { showInChat, ...withoutFlag } = { ...CONFIG, ...REF_CONFIG_LIMITS, showInChat: undefined };
+    assert.equal(settingsFromConfig(withoutFlag).showInChat, true);
+});
+
+test('settings: isUsableSettings rejects a document without a model registry', () => {
+    assert.equal(isUsableSettings({ models: {} }), true);
+    assert.equal(isUsableSettings({ models: null }), false);
+    assert.equal(isUsableSettings({}), false);
+    assert.equal(isUsableSettings(undefined), false);
+});
+
+test('settings: the namespace registers with the config as base and applies live', () => {
+    process.env.IMAGEGEN_TEST_KEY = 'test-key';
+    const settings = fakeSettings();
+    const { ctx } = fakeCtx(undefined, undefined, settings);
+    apply(ctx, { ...CONFIG, ...REF_CONFIG_LIMITS }, { fetchImpl: ChatFetch() });
+    assert.equal(settings.state.registered.ns, 'dsh-tool-imagegen');
+    assert.equal(settings.state.registered.options.applies, 'live');
+    assert.deepEqual(settings.state.registered.options.base.models, CONFIG.models);
+    assert.ok(settings.state.registered.schema, 'a schema is registered for the card to render');
+});
+
+test('settings: a committed change reaches the NEXT call without a restart', async () => {
+    process.env.IMAGEGEN_TEST_KEY = 'test-key';
+    const workspace = await mkdtemp(join(tmpdir(), 'imagegen-settings-'));
+    try {
+        const settings = fakeSettings();
+        const { ctx, registered, runEffects } = fakeCtx(undefined, undefined, settings);
+        apply(ctx, { ...CONFIG, ...REF_CONFIG_LIMITS }, { fetchImpl: ChatFetch(), workspaceRoot: workspace });
+        runEffects();
+        const tool = registered[0];
+        const exec = { signal: new AbortController().signal };
+
+        // Config state: alias "neu" does not exist, n = 4 is allowed.
+        await assert.rejects(tool.execute({ prompt: 'x', model: 'neu' }, exec), /Unknown model alias "neu"/);
+
+        settings.emit({
+            ...settingsFromConfig({ ...CONFIG, ...REF_CONFIG_LIMITS }),
+            models: { ...CONFIG.models, neu: { id: 'bytedance-seed/seedream-4.5', defaults: {} } },
+            maxImagesPerCall: 1,
+            outputDir: 'aus-der-karte',
+        });
+
+        // The new alias is reachable and the lowered cap bites, same process.
+        const value = await tool.execute({ prompt: 'x', model: 'neu' }, exec);
+        assert.equal(value.alias, 'neu');
+        assert.match(value.images[0].path, /aus-der-karte/);
+        await assert.rejects(
+            tool.execute({ prompt: 'x', n: 2 }, exec),
+            /exceeds the configured maxImagesPerCall = 1/,
+        );
+    } finally { await rm(workspace, { recursive: true, force: true }); }
+});
+
+test('settings: a hand-edited document without models is refused, the last good value stands', async () => {
+    process.env.IMAGEGEN_TEST_KEY = 'test-key';
+    const workspace = await mkdtemp(join(tmpdir(), 'imagegen-settings-bad-'));
+    try {
+        const settings = fakeSettings();
+        const { ctx, registered, runEffects } = fakeCtx(undefined, undefined, settings);
+        apply(ctx, { ...CONFIG, ...REF_CONFIG_LIMITS }, { fetchImpl: ChatFetch(), workspaceRoot: workspace });
+        runEffects();
+        settings.emit({ models: null, defaultModel: 'weg' });
+        const value = await registered[0].execute({ prompt: 'x' }, { signal: new AbortController().signal });
+        assert.equal(value.alias, 'seedream', 'the unusable document did not replace the live settings');
+    } finally { await rm(workspace, { recursive: true, force: true }); }
+});
+
+test('settings: without a settings service the config governs and the tool still works', async () => {
+    process.env.IMAGEGEN_TEST_KEY = 'test-key';
+    const workspace = await mkdtemp(join(tmpdir(), 'imagegen-nosettings-'));
+    try {
+        const { ctx, registered } = fakeCtx();
+        apply(ctx, { ...CONFIG, ...REF_CONFIG_LIMITS, outputDir: 'aus-der-config' }, {
+            fetchImpl: ChatFetch(), workspaceRoot: workspace,
+        });
+        const value = await registered[0].execute({ prompt: 'x' }, { signal: new AbortController().signal });
+        assert.match(value.images[0].path, /aus-der-config/);
     } finally { await rm(workspace, { recursive: true, force: true }); }
 });

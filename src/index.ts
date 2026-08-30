@@ -21,6 +21,14 @@ import { CapabilityCache, buildParams, gateReferences } from './capabilities.js'
 import { buildChatMessage, isAttachableMediaType, toSaveInput, toValueRef, type AttachmentSeam, type ChatImage } from './chat.js';
 import { Config, type ImagegenModelEntry, type PluginConfig } from './config.js';
 import { resolveApiKey } from './key.js';
+import {
+    IMAGEGEN_SETTINGS_NAMESPACE,
+    ImagegenSettingsSchema,
+    isUsableSettings,
+    settingsFromConfig,
+    type ImagegenSettings,
+    type SettingsSeam,
+} from './settings.js';
 import { OpenRouterHttpError, generateImage } from './openrouter.js';
 import { readReferences, toWireReference, type ImageReference } from './references.js';
 import { sanitizeName, timestampForName, writeImages } from './write.js';
@@ -34,11 +42,11 @@ export type { PluginConfig };
 const IMAGEGEN_TIMEOUT_MS = 300_000;
 const PROMPT_CARD_EXCERPT = 200;
 
-/** Resolve the alias against the configured allowlist. */
-function resolveModel(config: PluginConfig, alias: string): ImagegenModelEntry {
-    const entry = config.models?.[alias];
+/** Resolve the alias against the live allowlist. */
+function resolveModel(settings: ImagegenSettings, alias: string): ImagegenModelEntry {
+    const entry = settings.models?.[alias];
     if (!entry?.id) {
-        const known = Object.keys(config.models ?? {});
+        const known = Object.keys(settings.models ?? {});
         throw new Error(
             `Unknown model alias "${alias}". Configured aliases: ${known.length ? known.join(', ') : '(none — configure imagegen.models)'}.`,
         );
@@ -63,6 +71,8 @@ export interface PluginDeps {
     workspaceRoot?: string;
     /** Attachment store for the chat image display; defaults to ctx.get('attachments'). */
     attachments?: AttachmentSeam;
+    /** Settings service backing the configuration card; defaults to ctx.inject(['settings']). */
+    settings?: SettingsSeam;
 }
 
 /**
@@ -82,6 +92,30 @@ export function applyWithDeps(ctx: Context, config: PluginConfig, deps: PluginDe
     // (e.g. headless) keeps the tool working — only the chat preview is lost.
     const attachments: AttachmentSeam | undefined = deps.attachments
         ?? (typeof ctx.get === 'function' ? (ctx.get('attachments') as AttachmentSeam | undefined) : undefined);
+
+    // The tunables the configuration card owns, resolved fresh per call. The
+    // entry config is the composition BASE the user layer resolves over, and
+    // the fallback wherever no settings service exists (headless): the tool
+    // then runs on the configured values, unconfigurable but working.
+    let live: ImagegenSettings = settingsFromConfig(config);
+    const bindSettings = (settings: SettingsSeam) => {
+        const scope = settings.register(IMAGEGEN_SETTINGS_NAMESPACE, ImagegenSettingsSchema, {
+            base: settingsFromConfig(config),
+            applies: 'live',
+        });
+        const initial = scope.get();
+        if (isUsableSettings(initial)) live = initial;
+        // A document hand-edited into a shape the tool cannot act on keeps the
+        // last good value rather than stranding the tool, as the settings
+        // service itself does for a schema failure.
+        ctx.effect(() => scope.watch((next) => {
+            if (isUsableSettings(next)) live = next;
+        }));
+    };
+    if (deps.settings) bindSettings(deps.settings);
+    else if (typeof ctx.inject === 'function') {
+        ctx.inject(['settings'], (settingsCtx: { settings: SettingsSeam }) => bindSettings(settingsCtx.settings));
+    }
 
     // Best-effort boot check: prefetch capabilities for the default model and
     // warn once when a configured default violates its record. Contained — an
@@ -250,11 +284,14 @@ export function applyWithDeps(ctx: Context, config: PluginConfig, deps: PluginDe
             if (!Number.isInteger(n) || n < 1) {
                 throw new Error(`Invalid n: ${JSON.stringify(args.n)} — must be an integer >= 1.`);
             }
-            if (n > config.maxImagesPerCall) {
-                throw new Error(`n = ${n} exceeds the configured maxImagesPerCall = ${config.maxImagesPerCall}.`);
+            // One snapshot per call: a commit landing mid-call must not change
+            // the rules the call is already being judged by.
+            const settings = live;
+            if (n > settings.maxImagesPerCall) {
+                throw new Error(`n = ${n} exceeds the configured maxImagesPerCall = ${settings.maxImagesPerCall}.`);
             }
-            const alias = (args.model ?? '').trim() || config.defaultModel;
-            const entry = resolveModel(config, alias);
+            const alias = (args.model ?? '').trim() || settings.defaultModel;
+            const entry = resolveModel(settings, alias);
             // Reference images resolve like every other parameter: call argument
             // → alias default → none. Only the LIST is resolved here; the files
             // are read after the gate has said the model can use them.
@@ -315,8 +352,8 @@ export function applyWithDeps(ctx: Context, config: PluginConfig, deps: PluginDe
                 encoded ??= await readReferences({
                     values: references,
                     workspaceRoot,
-                    maxBytes: config.maxReferenceBytes,
-                    maxTotalBytes: config.maxReferenceTotalBytes,
+                    maxBytes: settings.maxReferenceBytes,
+                    maxTotalBytes: settings.maxReferenceTotalBytes,
                     signal: exec.signal,
                 });
                 return { ...outcome.gate.params, input_references: encoded.map(toWireReference) };
@@ -358,7 +395,7 @@ export function applyWithDeps(ctx: Context, config: PluginConfig, deps: PluginDe
             const baseName = `${sanitizeName(alias)}-${timestampForName()}`;
             const written = await writeImages({
                 images: generation.images,
-                dir: config.outputDir,
+                dir: settings.outputDir,
                 baseName,
                 outputPath: args.output_path,
                 workspaceRoot,
@@ -371,7 +408,7 @@ export function applyWithDeps(ctx: Context, config: PluginConfig, deps: PluginDe
             // sees the picture too. Entirely contained — a store outage must
             // never fail an otherwise successful generation.
             let attached: ChatImage[] | undefined;
-            if (config.showInChat !== false && attachments) {
+            if (settings.showInChat && attachments) {
                 try {
                     const chatImages: ChatImage[] = [];
                     for (let i = 0; i < generation.images.length; i++) {

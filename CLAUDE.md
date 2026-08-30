@@ -29,7 +29,7 @@ unregisters everything.
 
 ## Architecture
 
-Eight source files plus one browser half (`lib/client.js`), each with a narrow, explicit contract (see the header comment of each — they state
+Nine source files plus one browser half (`lib/client.js`), each with a narrow, explicit contract (see the header comment of each — they state
 their own boundaries better than prose reproduces them):
 
 - **`src/index.ts`** — `apply()`/`applyWithDeps()`: registers the `generate_image` tool
@@ -73,6 +73,12 @@ their own boundaries better than prose reproduces them):
   capped (`maxReferenceBytes` / `maxReferenceTotalBytes`), identified by MAGIC BYTES and inlined
   as base64 data URLs. Node-only, harness-free. The wire shape is a content block,
   `{ type: 'image_url', image_url: { url } }` — not a bare string.
+- **`src/settings.ts`** — the `dsh-tool-imagegen` settings namespace behind the configuration
+  card: schema, the `ImagegenSettings` shape, and `settingsFromConfig()` (the composition `base`).
+  Layering is `schema defaults → base (cordis config) → user layer`, so a card edit is an override
+  on the config and clearing a field falls back to the configured value. Deliberately NOT editable:
+  `apiKeyEnv`, `baseURL`, `capabilityTtlMs` — the capability cache is built from the last two once
+  at apply time, so a live edit could not take effect.
 - **`src/chat.ts`** — the chat display path (config `showInChat`, default true): saves attachable
   images (png/jpeg/webp/gif — SVG is skipped) into the attachment store (opportunistic via
   `ctx.get('attachments')`, injectable as `deps.attachments`) and builds the plugin-sourced user
@@ -82,6 +88,13 @@ their own boundaries better than prose reproduces them):
   UI it lands as a context-injection ROW, not the history gallery — `source.kind !== 'user'` routes
   it there, and that row renders text blocks only, so the image itself is shown by the client half's
   tool card instead. All contained: store failures never fail the generation.
+
+`execute()` reads the tunables from the LIVE settings (`live`, updated by the namespace's
+`watch`), not from the frozen `config`: aliases, `defaultModel`, `outputDir`, `showInChat`,
+`maxImagesPerCall` and the reference caps change without a restart. It snapshots them once per
+call, so a commit landing mid-call cannot change the rules that call is judged by. One deliberate
+staleness: the `n` parameter DESCRIPTION quotes the configured cap at registration time, while the
+check enforces the live one.
 
 Call flow in `execute()` (index.ts) worth knowing before changing it: the capability record is
 fetched once, params gated, and the request sent; on an HTTP 400 **and** a cached record having
@@ -105,6 +118,13 @@ no build step; `tsc` never touches it. It registers the keyed `tool.call.toolvie
 `generate_image` (replacing the generic card), reads the settled node's `meta.attachments`, and
 loads bytes via `ctx.get('sessions').binding(current).session.readAttachment(attachmentId)`
 (current session = `sessions.list.getSnapshot().current`). Everything degrades to the path list.
+
+It also registers the configuration card in `settings.plugin.item`, keyed on the settings
+namespace, mounted in a child fiber that waits for `settingsScope` so a deployment without the
+settings surface still gets the tool card. The browser scope is `getSnapshot`/`subscribe`/`set`/
+`unset`; `set(field, value)` takes a JSON-shaped value, which is what lets the whole `models`
+dict be written as ONE field. "Overridden" comes from a key's PRESENCE in `snapshot.user`, never
+from comparing values.
 
 ### Policy boundary
 
