@@ -1,0 +1,12 @@
+node_modules/
+
+# tsc output. lib/client.js is NOT output — it is the hand-written browser half
+# (no build step touches it), so it is tracked explicitly.
+lib/*
+!lib/client.js
+
+# Generated images from a local run (config `outputDir`).
+.dsh/
+
+*.tgz
+*.log

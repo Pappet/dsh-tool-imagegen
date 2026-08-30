@@ -1,0 +1,7 @@
+# dsh-tool-imagegen bundle patch: installs the image-generation tool plugin row.
+# All configuration keys carry schema defaults; override any of them by
+# replacing this row's config (the whole row is replaced, never deep-merged).
+# The API key is read from the environment variable named by `apiKeyEnv`.
+- insert:
+    - id: imagegen
+      name: 'dsh-tool-imagegen'

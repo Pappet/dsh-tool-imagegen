@@ -1,0 +1,69 @@
+{
+  "name": "dsh-tool-imagegen",
+  "version": "0.1.0",
+  "description": "Text-to-image generation tool for DeepSeek Harness via OpenRouter's unified Image API, with capability-gated parameters and workspace file output",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test \"test/*.test.mjs\"",
+    "typecheck": "tsc --noEmit",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "image-generation",
+    "openrouter"
+  ],
+  "license": "MIT",
+  "author": "Peter Paprotny",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Pappet/dsh-tool-imagegen.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Pappet/dsh-tool-imagegen/issues"
+  },
+  "homepage": "https://github.com/Pappet/dsh-tool-imagegen#readme",
+  "dependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-attachment": "^0.0.1-rc.1",
+    "@deepseek-ai/dsh-credentials": "^0.0.1-rc.1",
+    "@deepseek-ai/dsh-llm": "^0.0.1-rc.1",
+    "@deepseek-ai/dsh-tools": "^0.0.1-rc.1",
+    "@deepseek-ai/schemastery": "^3.18.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-cordis-client-runner"
+      ],
+      "immediately": true
+    }
+  }
+}
