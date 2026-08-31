@@ -252,7 +252,7 @@ export function applyWithDeps(ctx: Context, config: PluginConfig, deps: PluginDe
             // An image-to-image call must not look like a text-to-image one on the card.
             const refs = Array.isArray(a.input_references) ? a.input_references.length : 0;
             const refLine = refs === 0 ? undefined
-                : refs === 1 ? 'mit 1 Referenzbild' : `mit ${refs} Referenzbildern`;
+                : refs === 1 ? 'with 1 reference image' : `with ${refs} reference images`;
             // When the call names its target file, declare the mutation intent:
             // the deliverables row (produced-files chips) and inline-code mention
             // links key off a generic card with kind 'edit' + locations.
@@ -260,7 +260,7 @@ export function applyWithDeps(ctx: Context, config: PluginConfig, deps: PluginDe
             const locations = outputPath ? [{ path: outputPath }] : undefined;
             return {
                 card: 'generic',
-                title: refLine ? `Bild generieren · ${refLine}` : 'Bild generieren',
+                title: refLine ? `Generate image · ${refLine}` : 'Generate image',
                 kind: locations ? 'edit' : 'other',
                 content: excerpt ? [{ type: 'text', text: excerpt }] : undefined,
                 locations,
@@ -274,7 +274,7 @@ export function applyWithDeps(ctx: Context, config: PluginConfig, deps: PluginDe
             if (paths.length === 0) return undefined;
             return {
                 card: 'generic',
-                title: `Bild generiert${meta?.model ? ` · ${meta.model}` : ''}`,
+                title: `Image generated${meta?.model ? ` · ${meta.model}` : ''}`,
                 content: paths.map((p) => ({ type: 'text', text: p })),
             };
         },

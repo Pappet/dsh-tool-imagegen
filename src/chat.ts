@@ -73,8 +73,8 @@ export function toValueRef(ref: ImageAttachmentRef): ImageAttachmentRef {
  */
 export function chatSummary(images: readonly ChatImage[]): string {
     return boundContextSummary(images.length === 1
-        ? `Bild erzeugt: ${images[0].path}`
-        : `${images.length} Bilder erzeugt: ${images.map((i) => i.path).join(', ')}`);
+        ? `Image created: ${images[0].path}`
+        : `${images.length} images created: ${images.map((i) => i.path).join(', ')}`);
 }
 
 /**

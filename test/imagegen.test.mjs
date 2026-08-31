@@ -325,7 +325,7 @@ test('plugin: registers exactly one generate_image tool with presenters and meta
     assert.equal(tool.presentResult({}, { isError: false, content: [], meta }), undefined);
     const resultView = tool.presentResult({ prompt: 'x' }, { isError: false, content: [], meta });
     assert.equal(resultView.card, 'generic');
-    assert.match(resultView.title, /Bild generiert/);
+    assert.match(resultView.title, /Image generated/);
     assert.deepEqual(resultView.content.map((c) => c.text), ['/p/1.png']);
     assert.equal(tool.presentResult({ prompt: 'x' }, { isError: true, content: [] }), undefined);
 });
@@ -508,7 +508,7 @@ test('chat: generated image is attached and deferred as a plugin message', async
         // `notice` form: the collapsed context row reads the summary instead of
         // falling back to the plugin name beside an unpresentable image block.
         assert.equal(msg.source.form, 'notice');
-        assert.equal(msg.source.summary, `Bild erzeugt: ${value.images[0].path}`);
+        assert.equal(msg.source.summary, `Image created: ${value.images[0].path}`);
         assert.equal(msg.content[0].type, 'image');
         assert.equal(msg.content[0].attachment.attachmentId, 'att-1');
         assert.equal(msg.content[1].type, 'text');
@@ -628,9 +628,9 @@ test('manifest: the client bundle is declared at dsh.client (where the harness r
 test('chat: the notice summary names every path and stays inside the 120-char bound', async () => {
     const path = (n) => `/w/${'x'.repeat(40)}/${n}.png`;
     const one = chatSummary([{ ref: {}, path: '/w/a.png' }]);
-    assert.equal(one, 'Bild erzeugt: /w/a.png');
+    assert.equal(one, 'Image created: /w/a.png');
     const many = chatSummary([1, 2, 3].map((n) => ({ ref: {}, path: path(n) })));
-    assert.ok(many.startsWith('3 Bilder erzeugt: '));
+    assert.ok(many.startsWith('3 images created: '));
     assert.ok(many.length <= 120, `summary is ${many.length} chars`);
 });
 

@@ -89,7 +89,7 @@ their own boundaries better than prose reproduces them):
   images (png/jpeg/webp/gif — SVG is skipped) into the attachment store (opportunistic via
   `ctx.get('attachments')`, injectable as `deps.attachments`) and builds the plugin-sourced user
   message (`createUserMessage`, `source.kind: 'plugin'`, `form: 'notice'` + `summary` from
-  `chatSummary()` so the collapsed context row reads "Bild erzeugt: …") that `execute` hands to
+  `chatSummary()` so the collapsed context row reads "Image created: …") that `execute` hands to
   `exec.deferContext`. The model sees it (text-only adapters substitute a placeholder); in the web
   UI it lands as a context-injection ROW, not the history gallery — `source.kind !== 'user'` routes
   it there, and that row renders text blocks only, so the image itself is shown by the client half's
@@ -124,6 +124,13 @@ no build step; `tsc` never touches it. It registers the keyed `tool.call.toolvie
 `generate_image` (replacing the generic card), reads the settled node's `meta.attachments`, and
 loads bytes via `ctx.get('sessions').binding(current).session.readAttachment(attachmentId)`
 (current session = `sessions.list.getSnapshot().current`). Everything degrades to the path list.
+
+All user-facing copy is English, with a Simplified Chinese dictionary beside it: the harness UI
+offers 中文 and English only, so a third language would be the odd one out. The browser half
+registers both through `ctx.locale.register(NS, { zh, en })` and keys its slots with `locale: NS`,
+so a component reads `props.t`; without the locale service every string still resolves through the
+English fallback. The SERVER-side copy (the `presentCall`/`presentResult` titles and
+`chatSummary`) has no locale seam and is English outright.
 
 It also registers the configuration card in `settings.plugin.item`, keyed on the settings
 namespace, mounted in a child fiber that waits for `settingsScope` so a deployment without the
