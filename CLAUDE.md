@@ -161,6 +161,12 @@ what every optional seam here wants. Same reasoning for contained registration: 
 loads bytes via `ctx.get('sessions').binding(current).session.readAttachment(attachmentId)`
 (current session = `sessions.list.getSnapshot().current`). Everything degrades to the path list.
 
+Styling follows the harness's own rule (`docs/web-styling.md`): name semantic `--dsw-alias-*`
+tokens, never literal colours — a test enforces both that and the token names, because a literal
+fallback silently masks a token that does not exist. Two did: `--dsw-alias-border-secondary` was
+ours and wrong, and `--dsw-alias-label-error` is named by the harness's own `fields.module.css`
+but defined nowhere, so it carries `--dsw-alias-state-error-primary` as its fallback.
+
 All user-facing copy is English, with a Simplified Chinese dictionary beside it: the harness UI
 offers 中文 and English only, so a third language would be the odd one out. The browser half
 registers both through the locale service and keys its slots with `locale: NS`,

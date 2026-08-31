@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Pappet/dsh-tool-imagegen/actions/workflows/ci.yml/badge.svg)](https://github.com/Pappet/dsh-tool-imagegen/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![node](https://img.shields.io/badge/node-%3E%3D22-brightgreen.svg)](package.json)
+[![node](https://img.shields.io/badge/node-%3E%3D22.19-brightgreen.svg)](package.json)
 
 Image generation for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
 through OpenRouter's unified Image API (`POST /api/v1/images` — **not** the

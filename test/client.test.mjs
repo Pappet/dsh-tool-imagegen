@@ -251,3 +251,24 @@ test('client: a running call renders the prompt excerpt, not a crash', async () 
     const container = await render(card.component, { block });
     assert.ok(container.textContent.includes('a paper whale'));
 });
+
+test('client: styles use theme aliases, never literal colours', () => {
+    // web-styling.md: "Do not copy static palette values or write literal colors
+    // in feature components." A third-party bundle has no CSS modules, but the
+    // rule about WHICH values it may name still applies.
+    const literals = CLIENT_SOURCE.match(/var\(--dsw[a-z0-9-]*, *(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\))/g);
+    assert.equal(literals, null, `literal colour fallbacks: ${literals}`);
+    // Every alias this bundle names must be one the theme package defines.
+    const KNOWN = new Set([
+        '--dsw-alias-bg-layer-2', '--dsw-alias-bg-layer-3', '--dsw-alias-bg-module-platform',
+        '--dsw-alias-border-l2', '--dsw-alias-brand-primary', '--dsw-alias-label-dimmed',
+        '--dsw-alias-label-primary', '--dsw-alias-label-secondary', '--dsw-alias-label-tertiary',
+        '--dsw-alias-state-error-primary',
+        // Named by the harness's own fields.module.css and defined nowhere yet;
+        // it carries a real token as its fallback.
+        '--dsw-alias-label-error',
+    ]);
+    const used = new Set(CLIENT_SOURCE.match(/--dsw-alias-[a-z0-9-]+/g) ?? []);
+    const unknown = [...used].filter((t) => !KNOWN.has(t));
+    assert.deepEqual(unknown, [], `unknown design tokens: ${unknown}`);
+});
