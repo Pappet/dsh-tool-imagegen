@@ -20,7 +20,7 @@
  */
 import { settingsNamespace } from '@deepseek-ai/dsh-settings';
 import z from '@deepseek-ai/schemastery';
-import { ImagegenModelConfig, type ImagegenModelEntry, type PluginConfig } from './config.js';
+import { type ImagegenModelEntry, type PluginConfig } from './config.js';
 
 /** The namespace the settings card is keyed on, in both halves. */
 export const IMAGEGEN_SETTINGS_NAMESPACE = settingsNamespace('dsh-tool-imagegen');
@@ -29,12 +29,31 @@ export const IMAGEGEN_SETTINGS_NAMESPACE = settingsNamespace('dsh-tool-imagegen'
 export const IMAGEGEN_SETTINGS_NS = 'dsh-tool-imagegen';
 
 /**
- * Settings surface for the configuration card. Field-for-field a subset of
- * {@link PluginConfig}; the descriptions are what the card renders as hints,
- * so they address the person editing, not the deployment author.
+ * One alias row.
+ *
+ * A LIST, not the config's dict, and the reason is the layering: `mergeLayers`
+ * merges plain objects recursively and replaces arrays wholesale, so a dict in
+ * the user layer could never delete an alias the composition base declares —
+ * removing a row would silently re-inherit it from `cordis.yml`. As a list the
+ * user layer replaces the registry outright, which is what "remove this alias"
+ * has to mean. It also gives the card a stable row order.
+ */
+export const ImagegenModelSetting = z.object({
+    alias: z.string()
+        .description('Name the model uses in a tool call.'),
+    id: z.string()
+        .description('OpenRouter model slug, e.g. bytedance-seed/seedream-4.5.'),
+    defaults: z.dict(z.any())
+        .description('Default parameters for this alias; unsupported ones are dropped per call.'),
+});
+
+/**
+ * Settings surface for the configuration card. The tunables a person edits;
+ * the descriptions are what the card renders as hints, so they address the
+ * person editing, not the deployment author.
  */
 export const ImagegenSettingsSchema = z.object({
-    models: z.dict(ImagegenModelConfig)
+    models: z.array(ImagegenModelSetting)
         .description('Model aliases. The alias is what the model names in a tool call, and the allowlist: '
             + 'a model without an alias cannot be reached.'),
     defaultModel: z.string()
@@ -51,9 +70,14 @@ export const ImagegenSettingsSchema = z.object({
         .description('Largest total of all reference images of one call, in bytes.'),
 });
 
+/** One configured alias as the settings document carries it. */
+export interface ImagegenModelSettingEntry extends ImagegenModelEntry {
+    alias: string;
+}
+
 /** The live, resolved settings the tool reads per call. */
 export interface ImagegenSettings {
-    models: Record<string, ImagegenModelEntry>;
+    models: ImagegenModelSettingEntry[];
     defaultModel: string;
     outputDir: string;
     showInChat: boolean;
@@ -71,7 +95,11 @@ export interface ImagegenSettings {
  */
 export function settingsFromConfig(config: PluginConfig): ImagegenSettings {
     return {
-        models: config.models ?? {},
+        models: Object.entries(config.models ?? {}).map(([alias, entry]) => ({
+            alias,
+            id: entry.id,
+            defaults: entry.defaults ?? {},
+        })),
         defaultModel: config.defaultModel,
         outputDir: config.outputDir,
         showInChat: config.showInChat !== false,
@@ -86,7 +114,7 @@ export interface SettingsSeam {
     register(
         ns: unknown,
         schema: unknown,
-        options?: { base?: unknown; applies?: 'live' | 'restart' },
+        options?: { base?: unknown; applies?: 'live' | 'restart'; validate?: (value: never) => void },
     ): { get(): unknown; watch(cb: (next: unknown, prev: unknown) => void): () => void };
 }
 
@@ -99,5 +127,27 @@ export interface SettingsSeam {
 export function isUsableSettings(value: unknown): value is ImagegenSettings {
     if (typeof value !== 'object' || value === null) return false;
     const models = (value as { models?: unknown }).models;
-    return typeof models === 'object' && models !== null;
+    if (!Array.isArray(models)) return false;
+    return models.every((entry) => typeof entry === 'object' && entry !== null
+        && typeof (entry as { alias?: unknown }).alias === 'string'
+        && typeof (entry as { id?: unknown }).id === 'string');
+}
+
+/**
+ * Cross-field check the schema cannot express, run by the settings service on
+ * every write: two rows claiming one alias would make the allowlist ambiguous,
+ * and the loser would vanish from the UI with no account of why. Throwing here
+ * refuses the WRITE, so the card learns at save time instead of storing
+ * something the tool cannot act on.
+ * @param value - the resolved section, schema-valid by construction.
+ */
+export function validateSettings(value: ImagegenSettings): void {
+    const seen = new Set<string>();
+    for (const entry of value.models) {
+        const alias = entry.alias.trim();
+        if (alias === '') throw new Error('imagegen: a model alias must not be empty.');
+        if (entry.id.trim() === '') throw new Error(`imagegen: alias "${alias}" names no model slug.`);
+        if (seen.has(alias)) throw new Error(`imagegen: alias "${alias}" is listed more than once.`);
+        seen.add(alias);
+    }
 }

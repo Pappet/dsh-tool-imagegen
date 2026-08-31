@@ -75,6 +75,12 @@ their own boundaries better than prose reproduces them):
   `{ type: 'image_url', image_url: { url } }` — not a bare string.
 - **`src/settings.ts`** — the `dsh-tool-imagegen` settings namespace behind the configuration
   card: schema, the `ImagegenSettings` shape, and `settingsFromConfig()` (the composition `base`).
+  `models` is a LIST here while the config keeps a dict, and that is load-bearing: dsh-settings'
+  `mergeLayers` merges plain objects RECURSIVELY and replaces arrays wholesale, so a dict in the
+  user layer could never delete an alias the base declares — the row would re-inherit from
+  `cordis.yml` on the next read. `validateSettings` is the cross-field check the schema cannot
+  express (duplicate/empty alias, missing slug); it refuses the write rather than storing
+  something the tool cannot act on.
   Layering is `schema defaults → base (cordis config) → user layer`, so a card edit is an override
   on the config and clearing a field falls back to the configured value. Deliberately NOT editable:
   `apiKeyEnv`, `baseURL`, `capabilityTtlMs` — the capability cache is built from the last two once

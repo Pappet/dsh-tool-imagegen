@@ -10,7 +10,7 @@ import { join } from 'node:path';
 
 import { extForMediaType, sanitizeName, timestampForName, withMediaExtension, writeImages } from '../lib/write.js';
 import { readReferences, sniffMediaType, toWireReference } from '../lib/references.js';
-import { isUsableSettings, settingsFromConfig } from '../lib/settings.js';
+import { isUsableSettings, settingsFromConfig, validateSettings } from '../lib/settings.js';
 import { CapabilityCache, buildParams, gateReferences, FORWARDABLE_PARAMS } from '../lib/capabilities.js';
 import { OpenRouterHttpError, fetchImageModels, generateImage } from '../lib/openrouter.js';
 import { applyWithDeps as apply } from '../lib/index.js';
@@ -886,7 +886,29 @@ test('settings: the base layer is exactly the config subset the card may edit', 
     assert.equal(base.baseURL, undefined);
     assert.equal(base.capabilityTtlMs, undefined);
     assert.equal(base.defaultModel, 'seedream');
-    assert.deepEqual(base.models, CONFIG.models);
+    // A LIST, not the config's dict: mergeLayers merges plain objects recursively,
+    // so a dict in the user layer could never delete an alias the base declares.
+    assert.deepEqual(base.models, [
+        { alias: 'seedream', id: 'bytedance-seed/seedream-4.5', defaults: { resolution: '2K', aspect_ratio: '16:9' } },
+        { alias: 'pro', id: 'bytedance-seed/seedream-5-0-pro', defaults: {} },
+    ]);
+});
+
+test('settings: a removed alias stays removed — the list replaces, it does not merge', () => {
+    const base = settingsFromConfig({ ...CONFIG, ...REF_CONFIG_LIMITS });
+    const withoutPro = base.models.filter((m) => m.alias !== 'pro');
+    // What the card writes IS the whole registry, so the row is gone for good.
+    assert.deepEqual(withoutPro.map((m) => m.alias), ['seedream']);
+});
+
+test('settings: duplicate, empty and slugless aliases are refused at write time', () => {
+    const ok = { models: [{ alias: 'a', id: 'x/y', defaults: {} }] };
+    assert.doesNotThrow(() => validateSettings(ok));
+    assert.throws(() => validateSettings({ models: [
+        { alias: 'a', id: 'x/y' }, { alias: 'a', id: 'x/z' },
+    ] }), /"a" is listed more than once/);
+    assert.throws(() => validateSettings({ models: [{ alias: '  ', id: 'x/y' }] }), /must not be empty/);
+    assert.throws(() => validateSettings({ models: [{ alias: 'a', id: '' }] }), /names no model slug/);
 });
 
 test('settings: absent showInChat resolves to true, not undefined', () => {
@@ -895,8 +917,11 @@ test('settings: absent showInChat resolves to true, not undefined', () => {
 });
 
 test('settings: isUsableSettings rejects a document without a model registry', () => {
-    assert.equal(isUsableSettings({ models: {} }), true);
-    assert.equal(isUsableSettings({ models: null }), false);
+    assert.equal(isUsableSettings({ models: [] }), true);
+    assert.equal(isUsableSettings({ models: [{ alias: 'a', id: 'x/y' }] }), true);
+    // The pre-list document shape is exactly what must NOT be adopted.
+    assert.equal(isUsableSettings({ models: { seedream: { id: 'x/y' } } }), false);
+    assert.equal(isUsableSettings({ models: [{ id: 'x/y' }] }), false);
     assert.equal(isUsableSettings({}), false);
     assert.equal(isUsableSettings(undefined), false);
 });
@@ -908,7 +933,8 @@ test('settings: the namespace registers with the config as base and applies live
     apply(ctx, { ...CONFIG, ...REF_CONFIG_LIMITS }, { fetchImpl: ChatFetch() });
     assert.equal(settings.state.registered.ns, 'dsh-tool-imagegen');
     assert.equal(settings.state.registered.options.applies, 'live');
-    assert.deepEqual(settings.state.registered.options.base.models, CONFIG.models);
+    assert.deepEqual(settings.state.registered.options.base.models.map((m) => m.alias), ['seedream', 'pro']);
+    assert.equal(typeof settings.state.registered.options.validate, 'function');
     assert.ok(settings.state.registered.schema, 'a schema is registered for the card to render');
 });
 
@@ -928,7 +954,8 @@ test('settings: a committed change reaches the NEXT call without a restart', asy
 
         settings.emit({
             ...settingsFromConfig({ ...CONFIG, ...REF_CONFIG_LIMITS }),
-            models: { ...CONFIG.models, neu: { id: 'bytedance-seed/seedream-4.5', defaults: {} } },
+            models: settingsFromConfig({ ...CONFIG, ...REF_CONFIG_LIMITS }).models
+                .concat([{ alias: 'neu', id: 'bytedance-seed/seedream-4.5', defaults: {} }]),
             maxImagesPerCall: 1,
             outputDir: 'aus-der-karte',
         });
@@ -952,7 +979,7 @@ test('settings: a hand-edited document without models is refused, the last good 
         const { ctx, registered, runEffects } = fakeCtx(undefined, undefined, settings);
         apply(ctx, { ...CONFIG, ...REF_CONFIG_LIMITS }, { fetchImpl: ChatFetch(), workspaceRoot: workspace });
         runEffects();
-        settings.emit({ models: null, defaultModel: 'weg' });
+        settings.emit({ models: { seedream: { id: 'x' } }, defaultModel: 'weg' });
         const value = await registered[0].execute({ prompt: 'x' }, { signal: new AbortController().signal });
         assert.equal(value.alias, 'seedream', 'the unusable document did not replace the live settings');
     } finally { await rm(workspace, { recursive: true, force: true }); }

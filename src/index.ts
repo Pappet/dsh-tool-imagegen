@@ -26,6 +26,7 @@ import {
     ImagegenSettingsSchema,
     isUsableSettings,
     settingsFromConfig,
+    validateSettings,
     type ImagegenSettings,
     type SettingsSeam,
 } from './settings.js';
@@ -44,9 +45,9 @@ const PROMPT_CARD_EXCERPT = 200;
 
 /** Resolve the alias against the live allowlist. */
 function resolveModel(settings: ImagegenSettings, alias: string): ImagegenModelEntry {
-    const entry = settings.models?.[alias];
+    const entry = settings.models?.find((m) => m.alias === alias);
     if (!entry?.id) {
-        const known = Object.keys(settings.models ?? {});
+        const known = (settings.models ?? []).map((m) => m.alias);
         throw new Error(
             `Unknown model alias "${alias}". Configured aliases: ${known.length ? known.join(', ') : '(none — configure imagegen.models)'}.`,
         );
@@ -102,6 +103,7 @@ export function applyWithDeps(ctx: Context, config: PluginConfig, deps: PluginDe
         const scope = settings.register(IMAGEGEN_SETTINGS_NAMESPACE, ImagegenSettingsSchema, {
             base: settingsFromConfig(config),
             applies: 'live',
+            validate: validateSettings as (value: never) => void,
         });
         const initial = scope.get();
         if (isUsableSettings(initial)) live = initial;

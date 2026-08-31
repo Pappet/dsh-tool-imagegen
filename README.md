@@ -157,6 +157,12 @@ model aliases (alias, slug, defaults as JSON) and the scalar tunables
 (`defaultModel`, `outputDir`, `showInChat`, `maxImagesPerCall`, both reference
 caps).
 
+The alias registry is a LIST in the settings layer even though the config uses a
+dict. That is not cosmetic: the layers merge plain objects *recursively* and
+replace arrays wholesale, so a dict in the user layer could never delete an
+alias the config declares — a removed row would silently re-inherit. As a list,
+what the card writes is the whole registry.
+
 Config and card are layered, not alternatives:
 
 ```
