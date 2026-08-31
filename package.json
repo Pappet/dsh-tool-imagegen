@@ -40,17 +40,28 @@
     "url": "https://github.com/Pappet/dsh-tool-imagegen/issues"
   },
   "homepage": "https://github.com/Pappet/dsh-tool-imagegen#readme",
-  "dependencies": {
+  "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-attachment": "^0.0.1-rc.1",
-    "@deepseek-ai/dsh-credentials": "^0.0.1-rc.1",
-    "@deepseek-ai/dsh-llm": "^0.0.1-rc.1",
-    "@deepseek-ai/dsh-settings": "^0.0.1-rc.1",
-    "@deepseek-ai/dsh-tools": "^0.0.1-rc.1",
-    "@deepseek-ai/schemastery": "^3.18.1"
+    "@deepseek-ai/dsh-attachment": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-credentials": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-llm": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-settings": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-tools": "^0.1.1-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.1",
+    "react": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-attachment": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-credentials": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-llm": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-settings": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-tools": "^0.1.1-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.1",
     "@types/node": "^22.0.0",
+    "jsdom": "^30.0.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "typescript": "^5.5.0"
   },
   "dsh": {

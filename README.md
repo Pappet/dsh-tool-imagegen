@@ -192,9 +192,12 @@ against hallucinated `n` values, not a budget.
 ```sh
 npm install
 npm run build        # tsc → lib/
-npm test             # node:test, no network, mocked fetch
+npm test             # node:test, no network: host half + the browser half in jsdom
 npm run typecheck    # tsc --noEmit
 ```
+
+The `@deepseek-ai/*` packages are peer dependencies: the harness provides them,
+and a second copy of an identity-sensitive contract would shadow the host's.
 
 For a live install, link the checkout into a dsh profile (`dsh plugin add`); after
 `npm run build`, a profile restart reloads both halves.

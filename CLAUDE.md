@@ -109,10 +109,31 @@ been present, the cache is invalidated once and the whole gate+call is retried e
 
 ### Testing approach
 
-`test/imagegen.test.mjs` is the only test file: `node:test`, no network, `fetch` faked with
-minimal `{ ok, status, text, json }` stubs, real files written to a `mkdtemp` temp dir. It imports
-compiled output from `../lib/*.js`, so **rebuild before testing** whenever `src/` changes.
-`applyWithDeps` is exercised directly with a stub `Context`/`exec` rather than a real DSH harness.
+Two files, both `node:test`, both offline.
+
+`test/imagegen.test.mjs` covers the host half: `fetch` faked with minimal
+`{ ok, status, text, json }` stubs, real files written to a `mkdtemp` temp dir. It imports compiled
+output from `../lib/*.js`, so **rebuild before testing** whenever `src/` changes. `applyWithDeps`
+is exercised directly with a stub `Context`/`exec` rather than a real DSH harness. Any test that
+reaches the WRITE step must pass a `workspaceRoot`, or the images land in this repository.
+
+`test/client.test.mjs` mounts `lib/client.js` in jsdom and drives both cards — expanding the
+settings card, typing, removing an alias row, saving. It exists because nothing else looks at that
+file: `tsc` ignores it and `node --check` only proves it parses, so a deleted style constant or a
+service read that throws stays invisible until a person clicks. Two harness details are
+load-bearing: react-dom binds its event system at import time, so the jsdom globals are installed
+BEFORE the dynamic `import('react-dom/client')` (a hoisted static import would silently swallow
+every dispatched event), and typing goes through the native value setter plus an `input` event,
+which is what React's change tracking watches.
+
+### Dependencies
+
+`dependencies` is EMPTY and stays that way. Every `@deepseek-ai/*` package is a `peerDependency`
+plus a `devDependency` at the same range — the harness provides them at runtime, and a second copy
+of an identity-sensitive contract (cordis, dsh-attachment, dsh-llm, dsh-tools) shadows the host's,
+which the Plugin Market flags as `shared-host-package-dependency`. The devDependency ranges must
+track the version the host actually ships (`~/.local/node_modules/@deepseek-ai/*`), or the build
+type-checks against an API nobody runs.
 
 ### Client half (lib/client.js)
 
