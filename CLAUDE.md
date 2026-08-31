@@ -120,14 +120,21 @@ compiled output from `../lib/*.js`, so **rebuild before testing** whenever `src/
 `dsh.bundle.client`, which `dsh-client-modules` never reads; served at
 `/plugins/dsh-tool-imagegen/client.js`). It is hand-written against the
 `window.__ModuleLoader__.load({ id, factory })` contract — plain `React.createElement`, no JSX,
-no build step; `tsc` never touches it. It registers the keyed `tool.call.toolview` view for
+no build step; `tsc` never touches it.
+
+**Reach every service through `ctx.get(name)`, never `ctx.<name>`.** Cordis's context proxy throws
+`cannot get property "<name>" without inject` for anything this plugin did not declare in `inject`,
+and a throw inside `apply()` takes the WHOLE client half down — the tool card with it. `ctx.get`
+is the documented inject-free read and answers `undefined` when the service is absent, which is
+what every optional seam here wants. Same reasoning for contained registration: a duplicate
+`(ns, locale)` throws, and no dictionary is worth losing the image card over. It registers the keyed `tool.call.toolview` view for
 `generate_image` (replacing the generic card), reads the settled node's `meta.attachments`, and
 loads bytes via `ctx.get('sessions').binding(current).session.readAttachment(attachmentId)`
 (current session = `sessions.list.getSnapshot().current`). Everything degrades to the path list.
 
 All user-facing copy is English, with a Simplified Chinese dictionary beside it: the harness UI
 offers 中文 and English only, so a third language would be the odd one out. The browser half
-registers both through `ctx.locale.register(NS, { zh, en })` and keys its slots with `locale: NS`,
+registers both through the locale service and keys its slots with `locale: NS`,
 so a component reads `props.t`; without the locale service every string still resolves through the
 English fallback. The SERVER-side copy (the `presentCall`/`presentResult` titles and
 `chatSummary`) has no locale seam and is English outright.
