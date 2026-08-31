@@ -252,6 +252,24 @@ test('client: a running call renders the prompt excerpt, not a crash', async () 
     assert.ok(container.textContent.includes('a paper whale'));
 });
 
+test('client: one stylesheet is injected, once', () => {
+    mount();
+    const tags = dom.window.document.querySelectorAll('style[data-plugin-css]');
+    assert.equal(tags.length, 1);
+    assert.equal(tags[0].dataset.pluginCss, 'dsh-tool-imagegen/cards.css');
+    mount(); // a second activation must not stack a second sheet
+    assert.equal(dom.window.document.querySelectorAll('style[data-plugin-css]').length, 1);
+});
+
+test('client: every class the components name is defined in that stylesheet', () => {
+    const defined = new Set([...CLIENT_SOURCE.matchAll(/\.(dsi-[a-z-]+)[{,: ]/g)].map((m) => m[1]));
+    const used = new Set([...CLIENT_SOURCE.matchAll(/className: "([^"]+)"/g)]
+        .flatMap((m) => m[1].split(' ')));
+    const unknown = [...used].filter((c) => !defined.has(c));
+    assert.deepEqual(unknown, [], `classes with no rule: ${unknown}`);
+    assert.equal(/\bstyle: /.test(CLIENT_SOURCE), false, 'no inline style objects left');
+});
+
 test('client: styles use theme aliases, never literal colours', () => {
     // web-styling.md: "Do not copy static palette values or write literal colors
     // in feature components." A third-party bundle has no CSS modules, but the

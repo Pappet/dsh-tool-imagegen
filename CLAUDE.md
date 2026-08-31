@@ -161,7 +161,15 @@ what every optional seam here wants. Same reasoning for contained registration: 
 loads bytes via `ctx.get('sessions').binding(current).session.readAttachment(attachmentId)`
 (current session = `sessions.list.getSnapshot().current`). Everything degrades to the path list.
 
-Styling follows the harness's own rule (`docs/web-styling.md`): name semantic `--dsw-alias-*`
+Styling is ONE stylesheet injected once under `style[data-plugin-css="dsh-tool-imagegen/cards.css"]`,
+the way every built-in bundle ships CSS — components carry `className`, never a `style` object.
+A hand-written bundle has no CSS-module build step, but inline React styles cannot express
+`:hover`, `:disabled`, `:focus-visible`, or the `+` sibling rule that draws the divider BETWEEN
+fields, and `docs/web-styling.md` rules them out for theme branches. Class names are `dsi-`
+prefixed because the sheet is global. Tests assert that no inline style survives, that every class
+used has a rule, and that the sheet is injected exactly once.
+
+It also follows the harness's token rule (`docs/web-styling.md`): name semantic `--dsw-alias-*`
 tokens, never literal colours — a test enforces both that and the token names, because a literal
 fallback silently masks a token that does not exist. Two did: `--dsw-alias-border-secondary` was
 ours and wrong, and `--dsw-alias-label-error` is named by the harness's own `fields.module.css`
