@@ -4,13 +4,15 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { extForMediaType, sanitizeName, timestampForName, withMediaExtension, writeImages } from '../lib/write.js';
 import { readReferences, sniffMediaType, toWireReference } from '../lib/references.js';
-import { isUsableSettings, settingsFromConfig, validateSettings } from '../lib/settings.js';
+import {
+    IMAGEGEN_SETTINGS_NAMESPACE, isUsableSettings, settingsFromConfig, settingsNamespace, validateSettings,
+} from '../lib/settings.js';
 import { CapabilityCache, buildParams, gateReferences, FORWARDABLE_PARAMS } from '../lib/capabilities.js';
 import { OpenRouterHttpError, fetchImageModels, generateImage } from '../lib/openrouter.js';
 import { applyWithDeps as apply } from '../lib/index.js';
@@ -996,4 +998,26 @@ test('settings: without a settings service the config governs and the tool still
         const value = await registered[0].execute({ prompt: 'x' }, { signal: new AbortController().signal });
         assert.match(value.images[0].path, /aus-der-config/);
     } finally { await rm(workspace, { recursive: true, force: true }); }
+});
+
+test('settings: the namespace grammar is enforced in-repo, not imported', async () => {
+    assert.equal(IMAGEGEN_SETTINGS_NAMESPACE, 'dsh-tool-imagegen');
+    assert.equal(settingsNamespace('dsh-tool-imagegen'), 'dsh-tool-imagegen');
+    assert.throws(() => settingsNamespace('Image Generation'), /must match/);
+    assert.throws(() => settingsNamespace('9lives'), /must match/);
+});
+
+test('settings: nothing imports @deepseek-ai/dsh-settings', async () => {
+    // The 0.1.2-alpha line dropped `settingsNamespace` and `installSettingsSection`
+    // from that package's exports, and every plugin importing them failed to load.
+    // A three-line pattern check is not worth a hard dependency on a moving export.
+    const dir = new URL('../src/', import.meta.url);
+    const files = (await readdir(dir)).filter((f) => f.endsWith('.ts'));
+    for (const file of files) {
+        const source = await readFile(new URL(file, dir), 'utf8');
+        assert.ok(!source.includes('@deepseek-ai/dsh-settings'), `${file} imports dsh-settings`);
+    }
+    const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+    assert.equal(pkg.peerDependencies?.['@deepseek-ai/dsh-settings'], undefined);
+    assert.equal(pkg.devDependencies?.['@deepseek-ai/dsh-settings'], undefined);
 });

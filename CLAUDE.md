@@ -75,6 +75,12 @@ their own boundaries better than prose reproduces them):
   `{ type: 'image_url', image_url: { url } }` — not a bare string.
 - **`src/settings.ts`** — the `dsh-tool-imagegen` settings namespace behind the configuration
   card: schema, the `ImagegenSettings` shape, and `settingsFromConfig()` (the composition `base`).
+  It imports NOTHING from `@deepseek-ai/dsh-settings` and must stay that way: the 0.1.2-alpha line
+  dropped that package's `settingsNamespace`/`installSettingsSection` exports, and every plugin
+  importing them died with a `SyntaxError` at module instantiation — before any code could run,
+  taking the whole plugin tree down. The namespace grammar is one regex, owned here; the service
+  itself is reached structurally through `SettingsSeam` and a cast at the `ctx.inject` seam, since
+  dropping the package also dropped its `Context` augmentation. A test enforces the absence.
   `models` is a LIST here while the config keeps a dict, and that is load-bearing: dsh-settings'
   `mergeLayers` merges plain objects RECURSIVELY and replaces arrays wholesale, so a dict in the
   user layer could never delete an alias the base declares — the row would re-inherit from
@@ -128,7 +134,8 @@ which is what React's change tracking watches.
 
 ### Dependencies
 
-`dependencies` is EMPTY and stays that way. Every `@deepseek-ai/*` package is a `peerDependency`
+`dependencies` is EMPTY and stays that way. A host package is worth a peer dependency only when
+this plugin imports a VALUE from it; `dsh-settings` is deliberately absent (see `src/settings.ts`). Every `@deepseek-ai/*` package is a `peerDependency`
 plus a `devDependency` at the same range — the harness provides them at runtime, and a second copy
 of an identity-sensitive contract (cordis, dsh-attachment, dsh-llm, dsh-tools) shadows the host's,
 which the Plugin Market flags as `shared-host-package-dependency`. The devDependency ranges must

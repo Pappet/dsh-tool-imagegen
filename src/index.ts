@@ -116,7 +116,13 @@ export function applyWithDeps(ctx: Context, config: PluginConfig, deps: PluginDe
     };
     if (deps.settings) bindSettings(deps.settings);
     else if (typeof ctx.inject === 'function') {
-        ctx.inject(['settings'], (settingsCtx: { settings: SettingsSeam }) => bindSettings(settingsCtx.settings));
+        // The service is read structurally (see SettingsSeam): dropping the
+        // dsh-settings import also dropped its `Context` augmentation, and
+        // depending on that package again just to name `ctx.settings` would
+        // reintroduce exactly the coupling that the alpha line broke.
+        ctx.inject(['settings'], (settingsCtx) => {
+            bindSettings((settingsCtx as unknown as { settings: SettingsSeam }).settings);
+        });
     }
 
     // Best-effort boot check: prefetch capabilities for the default model and

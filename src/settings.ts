@@ -18,15 +18,36 @@
  * without rebuilding it.
  * @module dsh-tool-imagegen/settings
  */
-import { settingsNamespace } from '@deepseek-ai/dsh-settings';
 import z from '@deepseek-ai/schemastery';
 import { type ImagegenModelEntry, type PluginConfig } from './config.js';
 
+/** Namespace grammar as the settings service states it: lowercase kebab-case. */
+const NAMESPACE_PATTERN = /^[a-z][a-z0-9-]*$/;
+
+/**
+ * Validate a settings namespace.
+ *
+ * dsh-settings exports a `settingsNamespace` helper that does exactly this,
+ * and importing it is the obvious move — but that export moves. The 0.1.2
+ * alpha line dropped it (and `installSettingsSection`) outright, and every
+ * plugin that imported them failed to LOAD, taking the whole plugin tree down
+ * with a `SyntaxError` before any of them could run. A three-line pattern
+ * check is not worth that coupling, so this plugin owns its copy and runs on
+ * either line. The grammar has to stay in step with the service, which is
+ * cheap: it is one regex, and a namespace it rejects would be refused at
+ * registration anyway.
+ * @param value - candidate namespace; lowercase kebab-case, as in plugin short names.
+ * @returns the namespace, unchanged.
+ */
+export function settingsNamespace(value: string): string {
+    if (!NAMESPACE_PATTERN.test(value)) {
+        throw new TypeError(`settings namespace "${value}" must match ${String(NAMESPACE_PATTERN)}`);
+    }
+    return value;
+}
+
 /** The namespace the settings card is keyed on, in both halves. */
 export const IMAGEGEN_SETTINGS_NAMESPACE = settingsNamespace('dsh-tool-imagegen');
-
-/** The namespace as a plain string, for the browser half's slot key. */
-export const IMAGEGEN_SETTINGS_NS = 'dsh-tool-imagegen';
 
 /**
  * One alias row.
