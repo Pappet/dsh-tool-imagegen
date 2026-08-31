@@ -121,7 +121,11 @@ loads bytes via `ctx.get('sessions').binding(current).session.readAttachment(att
 
 It also registers the configuration card in `settings.plugin.item`, keyed on the settings
 namespace, mounted in a child fiber that waits for `settingsScope` so a deployment without the
-settings surface still gets the tool card. The browser scope is `getSnapshot`/`subscribe`/`set`/
+settings surface still gets the tool card. The section renders its cards into a `<ul>`, so the
+card's root is an `<li>` wearing the same shell as the built-in ones (collapsed by default,
+chevron, "Ungespeichert" pill, discard/save footer). Those styles are RESTATED, not reused:
+`PluginCard.module.css`'s class names are module-hashed and its chevron is a primitives value
+import, both closed to a third-party bundle — keep the values in step with that file. The browser scope is `getSnapshot`/`subscribe`/`set`/
 `unset`; `set(field, value)` takes a JSON-shaped value, which is what lets the whole `models`
 dict be written as ONE field. "Overridden" comes from a key's PRESENCE in `snapshot.user`, never
 from comparing values.
