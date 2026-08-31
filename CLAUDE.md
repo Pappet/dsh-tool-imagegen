@@ -123,9 +123,13 @@ It also registers the configuration card in `settings.plugin.item`, keyed on the
 namespace, mounted in a child fiber that waits for `settingsScope` so a deployment without the
 settings surface still gets the tool card. The section renders its cards into a `<ul>`, so the
 card's root is an `<li>` wearing the same shell as the built-in ones (collapsed by default,
-chevron, "Ungespeichert" pill, discard/save footer). Those styles are RESTATED, not reused:
-`PluginCard.module.css`'s class names are module-hashed and its chevron is a primitives value
-import, both closed to a third-party bundle — keep the values in step with that file. The browser scope is `getSnapshot`/`subscribe`/`set`/
+chevron, "Ungespeichert" pill, discard/save footer). The fields inside follow
+`fields.module.css`: a `.field` column per tunable (`padding: 12px 0`, divider between fields),
+label 13px/500 sharing the head row with the overridden badge and a plain-text reset, a 34px
+input, and a 12px hint that turns into the error line. Those styles are RESTATED, not reused:
+the class names in both files are module-hashed and the chevron is a primitives value import,
+all closed to a third-party bundle — keep the values in step with those two files. One thing the
+standard has no precedent for is a boolean, so `showInChat` is a checkbox in the control slot. The browser scope is `getSnapshot`/`subscribe`/`set`/
 `unset`; `set(field, value)` takes a JSON-shaped value, which is what lets the whole `models`
 dict be written as ONE field. "Overridden" comes from a key's PRESENCE in `snapshot.user`, never
 from comparing values.
