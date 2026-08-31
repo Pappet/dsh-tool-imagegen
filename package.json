@@ -1,7 +1,7 @@
 {
   "name": "dsh-tool-imagegen",
   "version": "0.1.0",
-  "description": "Text-to-image generation tool for DeepSeek Harness via OpenRouter's unified Image API, with capability-gated parameters and workspace file output",
+  "description": "Image generation for DeepSeek Harness via OpenRouter's unified Image API: text-to-image and image-to-image with capability-gated parameters, workspace file output, an inline chat card and a settings card",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -27,10 +27,16 @@
   "keywords": [
     "dsh-plugin",
     "deepseek-harness",
+    "openrouter",
     "image-generation",
-    "openrouter"
+    "text-to-image",
+    "image-to-image",
+    "seedream"
   ],
   "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "author": "Peter Paprotny",
   "repository": {
     "type": "git",

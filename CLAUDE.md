@@ -134,11 +134,12 @@ which is what React's change tracking watches.
 
 ### Dependencies
 
-`dependencies` is EMPTY and stays that way. A host package is worth a peer dependency only when
-this plugin imports a VALUE from it; `dsh-settings` is deliberately absent (see `src/settings.ts`). Every `@deepseek-ai/*` package is a `peerDependency`
+`dependencies` is EMPTY and stays that way. Every `@deepseek-ai/*` package is a `peerDependency`
 plus a `devDependency` at the same range — the harness provides them at runtime, and a second copy
 of an identity-sensitive contract (cordis, dsh-attachment, dsh-llm, dsh-tools) shadows the host's,
-which the Plugin Market flags as `shared-host-package-dependency`. The devDependency ranges must
+which the Plugin Market flags as `shared-host-package-dependency`. A host package earns a peer
+dependency only when this plugin imports a VALUE from it, which is why `dsh-settings` is absent
+(see `src/settings.ts`). The devDependency ranges must
 track the version the host actually ships (`~/.local/node_modules/@deepseek-ai/*`), or the build
 type-checks against an API nobody runs.
 
